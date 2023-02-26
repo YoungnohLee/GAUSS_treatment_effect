@@ -1,0 +1,84 @@
+new;
+format /m1 /rd 7,3;
+cls;
+
+proc ker(z);
+    retp( 0.5*(abs(z).<1) ); // uniform kernel
+    //retp( pdfn(z) ); // gaussian kernel
+    //retp( 0.75*(1-z.^2).*(abs(z).<1) ); // trimmed quadratic kernel
+    //retp( (15/16)*((1-z.^2).^2).*(abs(z).<1) ); // quartic kernel
+endp;
+
+n = 2000;
+simlim = 500;
+one = ones(n,1);
+list_x0 = seqa(-3,0.5,1);
+neval = rows(list_x0);
+
+sim_Ey=zeros(simlim, neval);
+sim_Edy=zeros(simlim, neval);
+sim_varEy=zeros(simlim,neval);
+sim_varEdy=zeros(simlim,neval);
+sim_seEy=zeros(simlim,neval);
+sim_seEdy=zeros(simlim,neval);
+
+for simiter (1,simlim,1);
+    
+    x = -1+2*rndn(n,1);
+    y = 1 + x.^2 + 1.4*rndn(n,1);
+    
+    h = stdc(x)*(n^(-1/5));
+    nh = n*h;
+    
+    Ey_kerreg = zeros(neval,1);
+    Ey = zeros(neval,1);
+    varEy = zeros(neval,1);
+    seEy = zeros(neval,1);
+    Edy = zeros(neval,1);
+    varEdy = zeros(neval,1);
+    seEdy = zeros(neval,1);
+    for iter (1,neval,1);
+        z0 = (x - list_x0[iter,1])/h;
+        ker0 = ker(z0);
+        z = one~h*z0;
+        //Kernel Regression
+        Ey_kerreg[iter,1] = sumc(y.*ker0)/sumc(ker0);
+        //Local Linear Regression
+        invzkz = inv(z'*(z.*ker0)); // diag로 하면 용량 때문에 계산불가 sumc(wkw)^-1이랑 동일한 표현//
+        bhat = invzkz*z'*(y.*ker0);
+        Ey[iter,1] = bhat[1,1];
+        Edy[iter,1] = bhat[2,1];
+        
+        uhat = (y - z*bhat);
+        ukz = uhat.*(ker0.*z);
+        vcov = invzkz*(ukz'*ukz)*invzkz;
+        se = sqrt(diag(vcov));
+        
+        varEy[iter,1] = vcov[1,1];
+        varEdy[iter,1] = vcov[2,2];
+        seEy[iter,1]= se[1,1];
+        seEdy[iter,1] = se[2,1];
+    endfor;
+    
+    //ci95_Ey = Ey - 1.96*seEy ~ Ey + 1.96*seEy;
+    //ci95_Edy = Edy - 1.96*seEdy ~ Edy + 1.96*seEdy;
+    sim_Ey[simiter,.]=Ey';
+    sim_Edy[simiter,.]=Edy';
+    sim_varEy[simiter,.]=varEy';
+    sim_varEdy[simiter,.]=varEdy';
+    sim_seEy[simiter,.]=seEy';
+    sim_seEdy[simiter,.]=seEdy';
+endfor;
+
+zEy = (sim_Ey - meanc(sim_Ey)')./sim_seEy;
+zEdy = (sim_Edy - meanc(sim_Edy)')./sim_seEdy;
+
+meanc(sim_Ey)~meanc(sim_Edy);
+?;
+meanc(abs(zEy).>1.645)~meanc(abs(zEy).>1.95)~meanc(abs(zEy).>2.56);
+meanc(abs(zEdy).>1.645)~meanc(abs(zEdy).>1.95)~meanc(abs(zEdy).>2.56);
+?;
+meanc( (sim_Ey - meanc(sim_Ey)).^2 )~meanc( (sim_Edy - meanc(sim_Edy)).^2 );
+meanc(sim_varEy)~meanc(sim_varEdy);
+?;
+

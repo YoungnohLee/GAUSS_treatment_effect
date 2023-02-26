@@ -1,0 +1,40 @@
+new; format /m1 /rd 7,3;
+cls;
+
+n = 500;
+x = -1+2*rndn(n,1);
+y = 1 + x + 1.4*rndn(n,1);
+
+proc ker(z);
+retp( 0.5*(abs(z).<1) ); // uniform kernel
+//retp( pdfn(z) ); // gaussian kernel
+//retp( 0.75*(1-z.^2).*(abs(z).<1) ); // trimmed quadratic kernel
+//retp( (15/16)*((1-z.^2).^2).*(abs(z).<1) ); // quartic kernel
+endp;
+
+// Monte-Carlo Integration
+w = rndn(10000,1);
+intK2 = meanc( (ker(w).^2)./pdfn(w) ); // = integral K(z)^2 dz
+
+list_x0 = seqa(-3,0.5,13);
+h = stdc(x)*(n^(-1/5));
+nh = n*h;
+
+fx = zeros(13,1);
+Ey = zeros(13,1);
+varY = zeros(13,1);
+for iter (1,13,1);
+    z0 = (x - list_x0[iter,1])/h;
+    ker0 = ker(z0);
+    fx[iter,1] = sumc(ker0)/nh;
+    Ey[iter,1] = sumc(y.*ker0)/sumc(ker0);
+    varY[iter,1] = sumc( ((y-Ey[iter,1]).^2).*ker0)/sumc(ker0);
+endfor;
+
+varEy = (intK2*varY./fx);
+seEy = sqrt(varEy/nh);
+ci95 = Ey - 1.96*seEy ~ Ey + 1.96*seEY;
+
+list_x0~Ey~ci95;
+
+plotxy(list_x0, Ey~ci95);

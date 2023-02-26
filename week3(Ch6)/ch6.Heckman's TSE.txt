@@ -1,0 +1,46 @@
+/*===================== Heckman's TSE ======================*/
+
+new; format/m1/rd 6,2; n=1000; one=ones(n,1); 
+x2=rndn(n,1); x3=rndn(n,1); e=rndn(n,1);
+dstar=1+x2+x3+e; d=dstar.>0; w=one~x2~x3; kw=cols(w);
+
+u=rndn(n,1)+2*e; u=u/stdc(u);
+ystar=1+x2+u; y=ystar.*d; x=one~x2; kx=cols(x); /* c=x3 */
+
+/* OLS of y on x using d=1 subsample*/
+
+yd=y.*d; xd=x.*d; invpd(xd'xd)*xd'yd; rows(yd); ?;
+yx=y~x; yxs=selif(yx,d); 
+ys=yxs[.,1]; /* y-selected */ xs=yxs[.,2:kx+1]; /* x-selected */
+invpd(xs'xs)*xs'ys; rows(ys); ?; lse=invpd((x.*d)'x)*((x.*d)'y)|0;  
+
+/* 1st probt stage */
+
+proc prolike(a); local prob;  prob=cdfn(w*a);
+retp(-d'ln(prob)-(1-d)'ln(1-prob)); endp;
+
+proc profir(a); local wa,den,prob,e,denom;
+  wa=w*a; den=pdfn(wa); prob=cdfn(wa); 
+  denom=prob.*(1-prob); e=(d-prob).*den./denom;
+retp(w.*e); endp;
+
+a0=invpd(w'w)*(w'd); {pro,obj,grad,ret}=qnewton(&prolike,a0); 
+gradi=profir(pro); info=gradi'gradi; covpro=invpd(info); 
+
+/* 2nd OLS stage */
+ 
+wa=w*pro; lam=pdfn(wa)./cdfn(wa); lam2=lam^2; zd=(x~lam).*d; 
+/* corrx(wa~(wa^2)); corrx(lam~lam2); */
+b=invpd(zd'zd)*zd'y; pyd=zd*b; vd=y-pyd;
+
+iqbb=invpd(zd'zd); 
+cov0=iqbb*(zd'(zd.*(vd^2)))*iqbb; /* cov0 under H0: rho=0*/
+/* lse~b~(b./sqrt(diag(cov0))); */
+
+rhosig=b[cols(zd),1]; el=rhosig*( zd'( w.*(-wa.*lam-lam2) ) );  
+qb=zd.*vd -gradi*covpro*el'; qbqb=qb'qb; cov1=iqbb*qbqb*iqbb'; 
+lse~b~(b./sqrt(diag(cov1)))~(b./sqrt(diag(cov0))); 
+
+g=invpd(x'x)*(x'lam); v=lam-x*g; sse=sumc(v^2);
+"R-sq for lambda:" 1-sse/sumc((lam-meanc(lam))^2);
+end;

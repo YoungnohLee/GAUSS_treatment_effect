@@ -1,0 +1,28 @@
+new; format /m1 /rd 7,3;
+n=300; one=ones(n,1);
+
+x2=rndn(n,1).>0; x3=rndn(n,1); x=one~x2~x3; k=cols(x);
+beta0=1|1|1; u=rndn(n,1);
+ys=x*beta0+u; y=ys.>0;
+
+proc like(a); local c; c=cdfn(x*a);
+retp( -sumc(y.*ln(c)+(1-y).*ln(1-c))); endp;
+
+proc first(a); local xa, d, c;
+xa=x*a; d=pdfn(xa); c=cdfn(xa);
+retp(x.*((y-c).*d)./(c.*(1-c))); endp;
+
+a0=invpd(x'x)*(x'y);
+{pro,obj,grad,ret}=qnewton(&like,a0);
+
+hessi=hessp(&like,pro); covhes=invpd(hessi);
+gradi=first(pro); covgra=invpd(gradi'gradi);
+covrob=covhes*(gradi'gradi)*covhes;
+
+tvgra=pro./sqrt(diag(covgra));
+tvhes=pro./sqrt(diag(covhes));
+tvrob=pro./sqrt(diag(covrob));
+
+pro~tvgra~tvhes~tvrob; "log-like : " -obj;
+
+end;

@@ -1,0 +1,63 @@
+new; format /m1 /rd 7,3;
+cls;
+
+n = 1000;
+x1 = -3+6*rndu(n,1);
+x2 = 0.5*rndn(n,1);
+y = (1 + x1 - x2 ).^2 + rndn(n,1);
+
+proc ker(z);
+//retp( 0.5*(abs(z).<1) ); // uniform kernel
+retp( pdfn(z) ); // gaussian kernel
+//retp( 0.75*(1-z.^2).*(abs(z).<1) ); // trimmed quadratic kernel
+//retp( (15/16)*((1-z.^2).^2).*(abs(z).<1) ); // quartic kernel
+endp;
+
+// Monte-Carlo Integration
+w = rndn(10000,1);
+intK2 = meanc( (ker(w).^2)./pdfn(w) )^2; // = integral K(z)^2 dz
+
+k=2;
+h = stdc(x1)*stdc(x2)*(n^(-1/(4+k)));
+nh = n*(h^k);
+
+/*
+// Leave-one out estimator
+fx = zeros(n,1);
+Ey = zeros(n,1);
+varY = zeros(n,1);
+for iter (1,n,1);
+    if iter==1; index = seqa(2,1,n-1);
+    elseif iter==n; index = seqa(1,1,n-1);
+    else; index = seqa(1,1,iter-1)|seqa(iter+1,1,n-iter);
+    endif;
+    x10 = x1[iter,.];
+    x20 = x2[iter,.];
+    z1 = (x1[index,.] - x10)/h;
+    z2 = (x2[index,.] - x20)/h;
+    y0 = y[index,.];
+    ker0 = ker(z1).*ker(z2);
+    fx[iter,1] = sumc(ker0)/nh;
+    Ey[iter,1] = sumc(y0.*ker0)/sumc(ker0);
+    varY[iter,1] = sumc( ((y0-meanc(y0)).^2).*ker0)/sumc(ker0);
+endfor;
+*/
+
+list_x1 = seqa(-3,0.1,61);
+fx = zeros(61,1);
+Ey = zeros(61,1);
+varY = zeros(61,1);
+for iter (1,61,1);
+    z1 = (x1 - list_x1[iter,.])/h;
+    z2 = (x2 - 0)/h;
+    ker0 = ker(z1).*ker(z2);
+    fx[iter,1] = sumc(ker0)/nh;
+    Ey[iter,1] = sumc(y.*ker0)/sumc(ker0);
+    varY[iter,1] = sumc( ((y-Ey[iter,1).^2).*ker0)/sumc(ker0);
+endfor;
+
+varEy = (intK2*varY./fx);
+seEy = sqrt(varEy/nh);
+ci95 = Ey - 1.96*seEy ~ Ey + 1.96*seEY;
+
+plotxy(list_x1, Ey~ci95);

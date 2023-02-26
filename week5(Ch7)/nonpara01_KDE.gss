@@ -1,0 +1,56 @@
+new; format /m1 /rd 7,3;
+cls;
+
+n = 500;
+x = rndn(n,1);
+list_x0 = seqa(-4,0.1,81);
+
+// Empirical Distribution Function(Estimating CDF)
+hatF = zeros(81,1);
+for iter (1,81,1);
+    x0 = list_x0[iter,1];
+    ind = (x.<=x0);
+    hatF[iter,1] = meanc(ind);
+endfor;
+// sqrt(n)*(Fn(x0) - F(x0)) -d-> N( 0, F(x0)*(1-F(x0)) )
+varF = hatF.*(1-hatF);
+seF = sqrt(varF/n);
+ci95 = hatF-1.96*seF~hatF+1.96*seF;
+trueF = cdfn(list_x0);
+
+list_x0~hatF~trueF;
+
+//plotxy(list_x0, hatF~ci95);
+//plotxy(list_x0, hatF~trueF);
+
+
+// Kernel Density Estimation(Estimating pdf)
+proc ker(z);
+retp( 0.5*(abs(z).<1) ); // uniform kernel
+//retp( pdfn(z) ); // gaussian kernel
+//retp( 0.75*(1-z.^2).*(abs(z).<1) ); // trimmed quadratic kernel
+//retp( (15/16)*((1-z.^2).^2).*(abs(z).<1) ); // quartic kernel
+endp;
+
+// Monte-Carlo Integration
+w = rndn(10000,1);
+intK2 = meanc( (ker(w).^2)./pdfn(w) ); // = integral K(z)^2 dz
+
+kde = zeros(81,1);
+h = stdc(x)*(n^(-1/5));
+nh = n*h;
+for iter (1,81,1);
+    x0 = list_x0[iter,1];
+    z0 = (x - x0)/h;
+    ker0 = ker(z0);
+    kde[iter,1] = sumc(ker0)/nh;
+endfor;
+varkde = kde*intK2; 
+// sqrt{nh}(fn(x0) - f(x0)) -d-> N(Bn, f(x0)*int(K(z)^2)dz), Bn -> 0
+// if nh -> inf, h -> 0, as n-> inf
+sekde = sqrt(varkde/nh);
+ci95 = kde-1.96*sekde~kde+1.96*sekde;
+
+truef = pdfn(list_x0);
+//plotxy(list_x0, kde~ci95);
+plotxy(list_x0, kde~truef);

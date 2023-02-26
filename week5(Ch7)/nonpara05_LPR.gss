@@ -1,0 +1,73 @@
+new;
+format /m1 /rd 7,3;
+cls;
+
+proc ker(z);
+    retp( 0.5*(abs(z).<1) ); // uniform kernel
+    //retp( pdfn(z) ); // gaussian kernel
+    //retp( 0.75*(1-z.^2).*(abs(z).<1) ); // trimmed quadratic kernel
+    //retp( (15/16)*((1-z.^2).^2).*(abs(z).<1) ); // quartic kernel
+endp;
+
+n = 2000;
+simlim = 1000;
+one = ones(n,1);
+x0 = 1~1~1;
+
+Ey=zeros(simlim, 1);
+Edy=zeros(simlim, 3);
+Ed2y=zeros(simlim, 3);
+Ed3y=zeros(simlim, 3);
+
+for simiter (1,simlim,1);
+    
+    x1 = -1+2*rndn(n,1);
+    x2 = -2+4*rndu(n,1);
+    x3 = rndn(n,1).^2 + rndn(n,1);
+    y = (1 + x1 + x2 + x3).^2 + 1.4*rndn(n,1);
+    
+    h = stdc(x1)*stdc(x2)*(n^(-1/(3+4)));
+    nh = n*h;
+    
+    z0 = ( (x1~x2~x3) - x0 )/h;
+    ker1 = ker(z0[.,1]);
+    ker2 = ker(z0[.,2]);
+    ker3 = ker(z0[.,3]);
+    ker0 = ker1.*ker2.*ker3;
+    z = one ~ h*z0 ~ (1/2)*(h*z0).^2 ~ (1/6)*(h*z0).^3; 
+    //Local Polynomial Regression
+    invzkz = inv(z'*(z.*ker0));
+    bhat = invzkz*z'*(y.*ker0);
+    Ey[simiter,.] = bhat[1,1];
+    Edy[simiter,.] = bhat[2:4,1]';
+    Ed2y[simiter,.] = bhat[5:7,1]';
+    Ed3y[simiter,.] = bhat[8:10,1]';
+    
+    uhat = (y - z*bhat);
+    ukz = uhat.*(ker0.*z);
+    vcov = invzkz*(ukz'*ukz)*invzkz;
+    diagvcov = diag(vcov);
+    se = sqrt(diagvcov/nh);
+    
+    varEy = diagvcov[1,.]; seEy = se[1,.];
+    varEdy = diagvcov[2:4,.]; seEdy = se[2:4,.];
+    varEd2y = diagvcov[5:7,.]; seEd2y = se[5:7,.];
+    varEd3y = diagvcov[8:10,.]; seEd3y = se[8:10,.];
+    
+endfor;
+
+// E[y|x] = (1 + x1 + x2 + x3)^2
+// E[y|x=(1,1,1)] = 16
+// dE[y|x=(1,1,1)]/dx  = (8,8,8)
+// d^2E[y|x=(1,1,1)]/dx^2  = (2,2,2)
+// d^3E[y|x=(1,1,1)]/dx^3  = (0,0,0)
+
+"E[y|x=(1,1,1)]";
+meanc(Ey);
+"dE[y|x]/dx at x = (1,1,1)";
+meanc(Edy)';
+"d^2E[y|x]/dx^2 at x = (1,1,1)";
+meanc(Ed2y)';
+"d^3E[y|x]/dx^3 at x = (1,1,1)";
+meanc(Ed3y)';
+

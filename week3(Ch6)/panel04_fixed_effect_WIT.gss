@@ -1,0 +1,76 @@
+new;
+format /m1 /rd 7,3;
+cls;
+
+n=500;
+T=3;
+
+at=10|11|12;
+bx=1|1|1;
+bc=-1|-1;
+one = ones(n,1);
+simlim = 500;
+
+sim_bols=zeros(simlim, 8);
+sim_bwit=zeros(simlim, 5);
+sim_z=zeros(simlim,5);
+
+for simiter (1,simlim,1);
+    x1 = (-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    x2 = (-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    x3 = (-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    c = (rndu(n,1).>0.4) ~ (rndu(n,1).>0.6);
+    
+    lambda = sumc(x1' + x2' + x3') + sumc(c');
+    lambda = (lambda - meanc(lambda))./stdc(lambda);
+    
+    y1 = at[1,1] + x1*bx + c*bc + 4*lambda + rndn(n,1);
+    y2 = at[2,1] + x2*bx + c*bc + 4*lambda + rndn(n,1);
+    y3 = at[3,1] + x3*bx + c*bc + 4*lambda + rndn(n,1);
+    
+    mT = eye(T); mT=mT[.,2:T];
+    oneT = ones(T,1);
+    QT = eye(T) - oneT*inv(oneT'*oneT)*oneT';
+    xx = 0; xy = 0;
+    xQx=0; xQy=0;
+    for i (1,n,1);
+        yi = y1[i,.]|y2[i,.]|y3[i,.];
+        
+        xi0 = (x1[i,.]~c[i,.])|(x3[i,.]~c[i,.])|(x3[i,.]~c[i,.]);
+        xi0 = oneT~mT~xi0;
+        xx = xx + xi0'*xi0;
+        xy = xy + xi0'*yi;
+        
+        xi = x1[i,.]|x2[i,.]|x3[i,.];
+        xi = mT~xi;
+        xQx = xQx + xi'*QT*xi;
+        xQy = xQy + xi'*QT*yi;
+    endfor;
+    invxx = inv(xx); bols = invxx*xy;
+    invxQx = inv(xQx); bwit = invxQx*xQy;
+    
+    xQuuQx = 0;
+    for i (1,n,1);        
+        yi = y1[i,.]|y2[i,.]|y3[i,.];
+        
+        xi = x1[i,.]|x2[i,.]|x3[i,.];
+        xi = mT~xi;
+        ui = yi - xi*bwit;
+        xQuuQx = xQuuQx + xi'*QT*ui*ui'*QT*xi;
+    endfor;
+    vcov_wit = invxQx*xQuuQx*invxQx;
+    
+    se_wit = sqrt(diag(vcov_wit));
+    z = (bwit - (at[2:T,.]-at[1,.]|bx))./se_wit;
+    
+    sim_bols[simiter,.]=bols';
+    sim_bwit[simiter,.]=bwit';
+    sim_z[simiter,.]=z';    
+endfor;
+
+at[1,.]~(at[2:T]-at[1,.])'~bx'~bc';
+meanc(sim_bols)';
+?;
+(at[2:T]-at[1,.])'~bx';
+meanc(sim_bwit)';
+meanc(abs(sim_z).>1.645)'|meanc(abs(sim_z).>1.96)'|meanc(abs(sim_z).>2.56)';

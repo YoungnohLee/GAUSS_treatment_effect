@@ -1,0 +1,86 @@
+new; format /m1 /rd 7,3; cls;
+
+n=500;
+T=3;
+k = 3;
+
+bx=1|1|1|1;
+one = ones(n,1);
+Ok = zeros(1, k);
+simlim = 500;
+
+sim_bgmm = zeros(simlim,4);
+sim_z = zeros(simlim,4);
+sim_J = zeros(simlim,1);
+
+for simiter (1,simlim,1);
+
+    x1 = one~(-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    x2 = one~(-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    x3 = one~(-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    
+    u1 = rndn(n,1); u2 = rndn(n,1); u3 = rndn(n,1);
+    /*
+    v = x1.*x2.*x3; v = v[.,1] + v[.,2] + v[.,3] + v[.,4]; v = (v - meanc(v))./stdc(v); 
+    u1 = (v.^2) + rndn(n,1);
+    u2 = (v.^2) + rndn(n,1);
+    u3 = (v.^2) + rndn(n,1);
+    */
+    y1 = x1*bx + u1;
+    y2 = x2*bx + u2;
+    y3 = x3*bx + u3;
+    // moment condition : (weak) predeterminedness
+    // E[x1u1] = 0
+    // E[x1u2] = E[x2u2] = 0
+    // E[x1u3] = E[x2u3] = E[x3u3] = 0
+    // zu = [ x1  O  O ][u1]
+    //      [ x1 x2  O ][u2]
+    //      [ x1 x2 x3 ][u3]
+    xz=0; zy=0; zz=0;
+    for i (1,n,1);
+        xi = x1[i,.]|x2[i,.]|x3[i,.];
+    //    zi = (x1[i,.] ~ Ok ~ Ok)|(x1[i,.] ~ x2[i,.] ~ Ok)|(x1[i,.] ~ x2[i,.] ~ x3[i,.]);
+        zi = (x1[i,.] ~ Ok ~ Ok)|(x1[i,.] ~ x2[i,2:4] ~ Ok)|(x1[i,.] ~ x2[i,2:4] ~ x3[i,2:4]);
+        yi = y1[i,.]|y2[i,.]|y3[i,.];
+        xz = xz + xi'*zi;
+        zy = zy + zi'*yi;
+        zz = zz + zi'*zi;
+    endfor;
+    invzz = inv(zz);
+    bive = inv(xz*invzz*xz')*xz*invzz*zy;
+
+    zuuz = 0; zu = 0;
+    for i (1,n,1);
+        xi = x1[i,.]|x2[i,.]|x3[i,.];
+    //    zi = (x1[i,.] ~ Ok ~ Ok)|(x1[i,.] ~ x2[i,.] ~ Ok)|(x1[i,.] ~ x2[i,.] ~ x3[i,.]);
+        zi = (x1[i,.] ~ Ok ~ Ok)|(x1[i,.] ~ x2[i,2:4] ~ Ok)|(x1[i,.] ~ x2[i,2:4] ~ x3[i,2:4]);
+        yi = y1[i,.]|y2[i,.]|y3[i,.];
+        ui = yi - xi*bive;
+        zuuz = zuuz + zi'*ui*ui'*zi;
+        zu = zu + zi'*ui;
+    endfor;
+    vcov = inv(xz*inv(zuuz)*xz');
+    bgmm = vcov*xz*inv(zuuz)*zy;
+    se = sqrt(diag(vcov));
+    tv = bgmm./se;
+    z = (bgmm - bx)./se;
+    
+    J = zu'*inv(zuuz)*zu; // Overidentification Test Statistics
+    
+    sim_bgmm[simiter,.]=bgmm';
+    sim_z[simiter,.]=z';
+    sim_J[simiter,.]=J;
+endfor;
+
+bx';
+meanc(sim_bgmm)';
+meanc(abs(sim_z).>1.645)'|meanc(abs(sim_z).>1.96)'|meanc(abs(sim_z).>2.56)';
+
+df = rows(zu)-4; // df = rank(E[Z'uu'Z]) - k
+c90 = cdfChincInv(0.90, df, 0);
+c95 = cdfChincInv(0.95, df, 0);
+c99 = cdfChincInv(0.99, df, 0);
+// third input is noncentrality parameter:
+// noncentrality parameter = 0 implies standard chi^2 distribution
+
+meanc(sim_J.>c90)|meanc(sim_J.>c95)|meanc(sim_J.>c99);

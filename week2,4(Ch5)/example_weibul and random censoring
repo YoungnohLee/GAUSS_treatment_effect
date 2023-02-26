@@ -1,0 +1,30 @@
+new; format/m1/rd 7,2; n=500; one=ones(n,1); cr=0.00001;
+iterlim=50;
+x2=rndn(n,1); x=one~x2; kx=cols(x); k=kx+1; /* k is # para. */
+beta=1|1; alpha=1;
+u=rndu(n,1); ys=( -exp(-x*beta).*ln(u) )^(1/alpha);
+/* Weibull ys simulation using S(y) follows U[0,1];
+logic: (S(ys)=) exp(-theta*ys^alp)=u; ln(u)=-theta*ys^alp;
+ys=(-ln(u)/theta)^(1/alp); let theta=exp(x*beta) */
+c=rndn(n,1)^2; /* random censoring point */
+y=minc(ys’|c’); d=ys.<=c; /* d is non-censoring indicator */
+proc like(g); local a,b,xb;
+b=g[1:kx,1]; a=g[k,1]; xb=x*b;
+retp( d.*(ln(a)+(a-1)*ln(y)+xb) - (y^a).*exp(xb) ); endp;
+lny=ln(y); lse=-invpd(x’x)*(x’lny); res2=(lny+x*lse)^2;
+s2=meanc(res2); a0=sqrt(1.645/s2); b0=lse*a0; g0=b0|a0;
+bestobj=-100000; bestg=g0; niter=1;
+/* no guarantee for global max; try different values
+for g0*/
+JOB:
+gradi=gradp(&like,g0); g1=g0+invpd(gradi’gradi)*sumc(gradi);
+newobj=sumc(like(g1)); niter=niter+1;
+if abs(newobj-bestobj)<cr; goto DONE; endif;
+if niter>iterlim; goto DONE; endif;
+if newobj>bestobj; bestobj=newobj; bestg=g1; endif;
+newobj~bestobj~niter; g0=g1; goto JOB;
+DONE:
+g=bestg; gradi=gradp(&like,g); covwei=invpd(gradi’gradi);
+tvwei=g./sqrt(diag(covwei)); g~tvwei; "Non-censoring %:"
+meanc(d);
+end;

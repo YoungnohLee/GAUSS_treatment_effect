@@ -1,0 +1,41 @@
+new; format /m1 /rd 7,3; n=1000;
+ 
+one=ones(n,1); eps=0.00001;
+x2=rndn(n,1); u=5*rndn(n,1); /* sigma^2 is 25*/
+beta1=1; beta2=1; ys=beta1*one+beta2*x2+u;
+y=maxc(ys’|zeros(1,n)); /* Left Censored */
+d=ys.>0; /* d is non-censoring indicator */
+x=one~x2; kx=cols(x); k=kx+1; /* k is # parameters */
+
+proc likesum(g); local b,s,xb,r,l1,l2;
+b=g[1:kx,1]; s=g[k,1]; xb=x*b; r=y-xb;
+l1=d.*ln(pdfn(r/s)/s); l2=(1-d).*ln(cdfn(-xb/s));
+retp(-sumc(l1+l2)); endp; /* output is a scalar */
+
+proc like(g); local b,s,xb,r,l1,l2;
+b=g[1:kx,1]; s=g[k,1]; xb=x*b; r=y-xb;
+l1=d.*ln(pdfn(r/s)/s); l2=(1-d).*ln(cdfn(-xb/s));
+retp(l1+l2); endp; /* output is N*1 */
+
+proc first(g); local j,bas,fder,ghi,glo;
+j=1; bas=eye(rows(g)); fder=zeros(n,k);
+do until j>k;
+ghi=g+eps*bas[.,j]; glo=g-eps*bas[.,j];
+fder[.,j]=(like(ghi)-like(glo))/(2*eps);
+j=j+1; endo;
+retp(fder); endp;
+
+/* "first" is a numerical derivative procedure; gradp can
+be used instead; but understanding this should be helpful when
+second order (cross) derivatives are needed */
+
+b0=invpd(x’x)*(x’y); res=y-x*b0; s0=sqrt(meanc(res^2));
+g0=b0|s0;
+
+{g,obj,grad,ret}=qnewton(&likesum,g0);
+
+gradi=first(g); cov=invpd(gradi’gradi);
+
+tv=g./sqrt(diag(cov)); "g,tv:" g~tv; "loglike: " -obj;
+
+end;

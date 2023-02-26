@@ -1,0 +1,86 @@
+new;
+format /m1 /rd 7,3;
+cls;
+
+n=500;
+T=3;
+
+at=10|11|12;
+bx=1|1|1;
+bc=-1|-1;
+one = ones(n,1);
+simlim = 1000;
+
+sim_ols = zeros(simlim,6);
+sim_wit = zeros(simlim,5);
+sim_haus = zeros(simlim,1);
+for simiter (1,simlim,1);
+    x1 = (-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    x2 = (-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    x3 = (-1+2*rndn(n,1))~(rndn(n,1).>0.5)~(-2+4*rndu(n,1));
+    
+    //lambda = sumc(x1' + x2' + x3');
+    lambda = (rndn(n,1).^2) + (rndn(n,1).^2);
+    lambda = (lambda - meanc(lambda))./stdc(lambda);
+
+    y1 = at[1,1] + x1*bx + 2*lambda + rndn(n,1);
+    y2 = at[2,1] + x2*bx + 2*lambda + rndn(n,1);
+    y3 = at[3,1] + x3*bx + 2*lambda + rndn(n,1);
+    
+    mT = eye(T); mT=mT[.,2:T];
+    oneT = ones(T,1);
+    QT = eye(T) - oneT*inv(oneT'*oneT)*oneT';
+    xx = 0; xy = 0;
+    xQx=0; xQy=0;
+    for i (1,n,1);
+        yi = y1[i,.]|y2[i,.]|y3[i,.];
+        
+        xi = x1[i,.]|x2[i,.]|x3[i,.];
+        xi = mT~xi;
+        xQx = xQx + xi'*QT*xi;
+        xQy = xQy + xi'*QT*yi;
+
+        xi0 = oneT~xi;
+        xx = xx + xi0'*xi0;
+        xy = xy + xi0'*yi;
+    endfor;
+    invxx = inv(xx); bols = invxx*xy;
+    invxQx = inv(xQx); bwit = invxQx*xQy;
+    
+    xQu = zeros(n,5); xu = zeros(n,6);
+    for i (1,n,1);        
+        yi = y1[i,.]|y2[i,.]|y3[i,.];
+        
+        xi = x1[i,.]|x2[i,.]|x3[i,.];
+        xi = mT~xi;
+        ui = yi - xi*bwit;
+        xQu[i,.] = ui'*QT*xi;
+        
+        xi0 = oneT~xi;
+        ui0 = yi - xi0*bols;
+        xu[i,.] = ui0'*xi0;
+    endfor;
+    influ_wit = xQu*invxQx;
+    influ_ols = xu*invxx;
+    
+    // H0 : b_ols = b_wit
+    db = (bols[4:6,.] - bwit[3:5,.]);
+    dinflu =  influ_ols[.,4:6] - influ_wit[.,3:5];
+    haus = db'*inv(dinflu'*dinflu)*db;
+    //////////////////////
+    sim_ols[simiter,.] = bols';
+    sim_wit[simiter,.] = bwit';
+    sim_haus[simiter,.] = haus;
+endfor;
+
+df = 3;
+c90 = cdfChincInv(0.90, df, 0);
+c95 = cdfChincInv(0.95, df, 0);
+c99 = cdfChincInv(0.99, df, 0);
+// third input is noncentrality parameter:
+// noncentrality parameter = 0 implies standard chi^2 distribution
+
+meanc(sim_ols[.,2:6])';
+meanc(sim_wit)';
+
+meanc(sim_haus.>c90)|meanc(sim_haus.>c95)|meanc(sim_haus.>c99);

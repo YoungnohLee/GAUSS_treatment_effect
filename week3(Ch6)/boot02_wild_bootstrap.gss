@@ -1,0 +1,38 @@
+new; format /m1 /rd 7,3;
+cls;
+
+n = 500;
+bx = 1|2;
+
+x = ones(n,1)~(1+0.5*rndn(n,1));
+y = x*bx + 1.2*rndn(n,1);
+
+invxx = inv(x'*x);
+bols = invxx*x'*y;
+yhat = x*bols;
+u = y - yhat;
+u2 = u.^2;
+vcov = invxx*(x'*(u2.*x))*invxx;
+tv = bols./sqrt(diag(vcov));
+
+// Wild Bootstrap
+// Testing H0 : beta = 0;
+B = 100;
+vs = rndu(n,B); vs = -1*(vs.<=0.5) + 1*(vs.>0.5);
+ys = yhat + vs.*u;
+boot_bols = zeros(B,1);
+boot_tv = zeros(B,1);
+for b (1,B,1);
+    yb = ys[.,b];
+    bols_b = invxx*x'*yb;
+    ub2 = (yb - x*bols_b).^2;
+    vcovb = invxx*(x'*(ub2.*x))*invxx;
+    tvb = (bols_b-0)./sqrt(diag(vcovb));
+    boot_bols[b,1] = bols_b[2,1];
+    boot_tv[b,1] = tvb[2,1];
+endfor;
+tv[2,.];
+quantile(boot_tv,0.025|0.975)'; // percentile-t method
+?;
+bols[2,1];
+quantile(boot_bols, 0.025|0.975)';
